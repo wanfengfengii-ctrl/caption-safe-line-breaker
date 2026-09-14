@@ -1,0 +1,27 @@
+# Docker Compose：默认仅运行静态 Web 服务。
+#   启动：      WEB_PORT=9090 docker compose up --build
+#   一次性验收：docker compose run --rm verify   （运行结束自动退出并清理）
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    image: subtitle-break-web:latest
+    ports:
+      # WEB_PORT 可覆盖宿主端口，容器内 nginx 固定监听 80
+      - "${WEB_PORT:-8080}:80"
+    restart: unless-stopped
+
+  verify:
+    build:
+      context: .
+      dockerfile: Dockerfile.verify
+    image: subtitle-break-verify:latest
+    # 一次性服务：不随 `docker compose up` 常驻，仅 `docker compose run verify` 时执行
+    profiles: ["verify"]
+    depends_on:
+      web:
+        condition: service_started
+    environment:
+      # 容器网络内访问静态 Web（不经宿主端口映射）
+      WEB_URL: http://web:80

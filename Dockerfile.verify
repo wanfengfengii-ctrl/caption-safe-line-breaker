@@ -1,0 +1,19 @@
+# 一次性验收镜像：运行 Vitest 判据与 Playwright 端到端验收后退出
+# 官方 Playwright 镜像已预装匹配版本的浏览器与全部系统依赖
+FROM mcr.microsoft.com/playwright:v1.63.0-noble
+
+# 使用镜像内预装的浏览器（/ms-playwright），无需再次下载
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
+# 官方镜像默认非 root（pwuser）；验收容器需要写 node_modules，显式用 root，
+# Chromium 已在 playwright.config.ts 中以 --no-sandbox 启动
+USER root
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+
+# 单元判据（宽度与平局规则）+ 浏览器端到端验收（粘贴到结果/复制）
+# WEB_URL 由 docker-compose 注入为静态 Web 服务地址
+CMD ["sh", "-c", "node scripts/wait-for-web.mjs && npm test && npx playwright test"]

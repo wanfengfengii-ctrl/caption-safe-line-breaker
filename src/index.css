@@ -1,0 +1,34 @@
+:root {
+  --bg: #f4f5f7;
+  --panel: #ffffff;
+  --ink: #1f2329;
+  --ink-soft: #5c6470;
+  --line: #d8dce3;
+  --accent: #1a5fb4;
+  --accent-soft: #e8f1fb;
+  --danger: #c01c28;
+  --danger-soft: #fdecee;
+  --ok: #1a7f37;
+  --ok-soft: #e9f7ec;
+  --warn: #9a6700;
+  font-family:
+    'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Source Han Sans SC',
+    'Segoe UI', system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.6;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}

@@ -1,0 +1,271 @@
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
+}
+
+.page-head h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
+}
+
+.subtitle {
+  margin: 0 0 22px;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+
+.panel-error {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.panel-error strong {
+  color: var(--danger);
+}
+
+.error-sub {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-bottom: 0;
+}
+
+.panel-ok {
+  border-color: #bfe3c6;
+  background: #fcfefc;
+}
+
+.field-label,
+.width-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  line-height: 1.8;
+}
+
+textarea:focus,
+input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.width-label {
+  margin: 0;
+}
+
+input[type='number'] {
+  width: 88px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.hint {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.result-badge {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.result-badge.ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.line-box {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  background: #fff;
+}
+
+.line-tag {
+  flex: none;
+  font-size: 12px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 6px;
+  padding: 1px 8px;
+}
+
+.line-text {
+  font-size: 20px;
+  letter-spacing: 1px;
+  word-break: break-all;
+}
+
+.meta {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 16px;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.meta li {
+  margin: 4px 0;
+}
+
+/* 安全区：每个半角单位 14px，整行宽度 = maxWidth * 14px */
+.safezone {
+  --unit: 14px;
+  margin: 6px 0 16px;
+  overflow-x: auto;
+}
+
+.safezone-ruler {
+  display: flex;
+  width: calc(var(--mw) * var(--unit));
+  position: relative;
+  font-size: 10px;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--line);
+}
+
+.ruler-cell {
+  width: var(--unit);
+  flex: none;
+  text-align: left;
+  padding-left: 1px;
+}
+
+.ruler-boundary {
+  position: absolute;
+  right: -2px;
+  top: -16px;
+  color: var(--danger);
+  white-space: nowrap;
+}
+
+.safezone-line {
+  display: flex;
+  width: calc(var(--mw) * var(--unit));
+  border-left: 1px dashed var(--line);
+  border-right: 2px solid var(--danger);
+  border-bottom: 1px dashed var(--line);
+  background:
+    repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(var(--unit) - 1px),
+      #eef0f3 calc(var(--unit) - 1px),
+      #eef0f3 var(--unit)
+    );
+}
+
+.gz {
+  flex: none;
+  height: calc(var(--unit) * 1.6);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.ch-wide {
+  width: calc(2 * var(--unit));
+}
+
+.ch-ascii {
+  width: var(--unit);
+}
+
+.ch-space {
+  color: var(--ink-soft);
+}
+
+.candidates {
+  margin: 8px 0 16px;
+  font-size: 13px;
+}
+
+.candidates summary {
+  cursor: pointer;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.candidates table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.candidates th,
+.candidates td {
+  border: 1px solid var(--line);
+  padding: 4px 8px;
+  text-align: left;
+}
+
+.row-illegal {
+  color: var(--ink-soft);
+  background: #fafbfc;
+}
+
+.row-selected {
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.copy-btn {
+  padding: 8px 18px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.copy-btn:hover {
+  filter: brightness(1.08);
+}
+
+.copy-msg {
+  display: inline-block;
+  margin-left: 12px;
+  color: var(--ok);
+  font-size: 13px;
+}
+
+.page-foot {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.page-foot p {
+  margin: 0;
+}
