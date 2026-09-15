@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { breakSubtitle, MAX_MAX_WIDTH, MIN_MAX_WIDTH } from './lib/break'
 import type { BreakResult, CandidateEvaluation } from './lib/break'
+import { copyToClipboard } from './lib/clipboard'
 import './App.css'
 
 const DEFAULT_TEXT = '明天上午九点，请准时参加会议。'
@@ -104,7 +105,7 @@ export default function App() {
     if (!result.ok) return
     const payload = result.split ? `${result.first}\n${result.second}` : result.text
     try {
-      await navigator.clipboard.writeText(payload)
+      await copyToClipboard(payload)
       setCopyMsg('已复制：两行结果（中间一个换行符）已写入剪贴板。')
     } catch {
       setCopyMsg('复制失败：浏览器未授权剪贴板，请手动选择上方文本复制。')
@@ -263,7 +264,7 @@ export default function App() {
 
       <footer className="page-foot">
         <p>
-          断句规则：第二行不得以“，。！？；：、）】》”开头；第一行不得以“（【《”结尾；两行均不得超宽。
+          断句规则：第二行不得以“，。！？；：、）】》”开头；右双引号“””允许位于第二行行首；第一行不得以“（【《”结尾；两行均不得超宽。
           合法方案取宽差最小，并列取第一行更宽，仍并列取更靠前断点。
         </p>
       </footer>

@@ -3,7 +3,7 @@ import { breakSubtitle } from './break'
 import type { BreakResult, SplitLineResult } from './break'
 import { charWidth } from './width'
 
-const FORBIDDEN_START = new Set(['，', '。', '！', '？', '；', '：', '、', '）', '】', '》', '”'])
+const FORBIDDEN_START = new Set(['，', '。', '！', '？', '；', '：', '、', '）', '】', '》'])
 const FORBIDDEN_END = new Set(['（', '【', '《'])
 
 function cpWidth(s: string): number {
@@ -126,6 +126,19 @@ describe('必须断两行时的基本约束', () => {
     expect(illegal.legal).toBe(false)
     expect(illegal.reasons.join('、')).toContain('禁用标点')
     expect(illegal.selected).toBe(false)
+  })
+
+  it('右双引号允许位于第二行行首：等宽断点不再被误判为无解', () => {
+    // 8 个全角字符总宽 16，maxWidth 8：唯一不超宽断点是 i=4，
+    // 第二行恰以“””开头（chars[4]=”）；右双引号允许行首，故得到 8/8 等宽两行
+    const text = '引用“甲”乙丙丁'
+    const r = breakSubtitle(text, 8)
+    expectSplit(r)
+    expect(r.firstWidth).toBe(8)
+    expect(r.secondWidth).toBe(8)
+    expect(r.breakIndex).toBe(4)
+    expect(r.second.startsWith('”')).toBe(true)
+    expect(r.first + r.second).toBe(text)
   })
 })
 

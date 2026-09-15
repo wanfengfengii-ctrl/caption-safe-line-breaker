@@ -1,7 +1,9 @@
-// 一次性验收前等待静态 Web 服务就绪（容器编排下的启动竞态）
+// 一次性验收前等待静态 Web 服务就绪（容器编排下的启动竞态）。
+// 验收容器内始终经 TCP 转发访问安全上下文 http://localhost:8080。
 import http from 'node:http'
 
-const url = process.env.WEB_URL ?? 'http://web:80'
+const port = process.env.LOCAL_WEB_PORT ?? 8080
+const url = process.env.WEB_URL ?? `http://127.0.0.1:${port}`
 const deadline = Date.now() + 60_000
 
 function tick() {

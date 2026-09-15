@@ -23,5 +23,8 @@ services:
       web:
         condition: service_started
     environment:
-      # 容器网络内访问静态 Web（不经宿主端口映射）
-      WEB_URL: http://web:80
+      # 验收容器内 TCP 转发的上游（容器网络中的静态 Web 服务）；
+      # 浏览器实际访问安全上下文 http://localhost:8080，保证剪贴板粘贴/复制可用
+      UPSTREAM_HOST: web
+      UPSTREAM_PORT: "80"
+      LOCAL_WEB_PORT: "8080"

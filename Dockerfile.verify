@@ -3,7 +3,10 @@
 FROM mcr.microsoft.com/playwright:v1.63.0-noble
 
 # 使用镜像内预装的浏览器（/ms-playwright），无需再次下载
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+    UPSTREAM_HOST=web \
+    UPSTREAM_PORT=80 \
+    LOCAL_WEB_PORT=8080
 
 # 官方镜像默认非 root（pwuser）；验收容器需要写 node_modules，显式用 root，
 # Chromium 已在 playwright.config.ts 中以 --no-sandbox 启动
@@ -14,6 +17,8 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 
-# 单元判据（宽度与平局规则）+ 浏览器端到端验收（粘贴到结果/复制）
-# WEB_URL 由 docker-compose 注入为静态 Web 服务地址
-CMD ["sh", "-c", "node scripts/wait-for-web.mjs && npm test && npx playwright test"]
+# 1) 后台把 127.0.0.1:8080 转发到静态 Web 容器 web:80（使浏览器在安全上下文
+#    http://localhost:8080 下运行，真实剪贴板粘贴/复制可用）
+# 2) 等待静态服务就绪
+# 3) 运行 Vitest 独立判据 + Playwright 端到端验收（含粘贴、复制）
+CMD ["sh", "-c", "node scripts/tcp-forward.mjs & node scripts/wait-for-web.mjs && npm test && npx playwright test"]

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const FORBIDDEN_START = ['，', '。', '！', '？', '；', '：', '、', '）', '】', '》', '”']
+const FORBIDDEN_START = ['，', '。', '！', '？', '；', '：', '、', '）', '】', '》']
 const FORBIDDEN_END = ['（', '【', '《']
 
 test.beforeEach(async ({ page, context }) => {
@@ -69,6 +69,23 @@ test('点击复制：剪贴板得到两行文本（中间恰好一个换行符�
   expect(lines).toHaveLength(2)
   expect(lines.join('')).toBe(text)
   expect(FORBIDDEN_START).not.toContain(lines[1][0])
+})
+
+test('第二行以右双引号开头时正常等宽断行（不误报无解）', async ({ page }) => {
+  // 8 个全角字符总宽 16，mw 8：唯一不超宽断点 i=4，第二行以“””开头
+  const text = '引用“甲”乙丙丁'
+  await page.getByTestId('text-input').fill(text)
+  await page.getByTestId('width-input').fill('8')
+
+  const boxes = page.getByTestId('line-box')
+  await expect(boxes).toHaveCount(2)
+  const first = (await boxes.nth(0).locator('.line-text').innerText()).trim()
+  const second = (await boxes.nth(1).locator('.line-text').innerText()).trim()
+  expect(first).toBe('引用“甲')
+  expect(second.startsWith('”')).toBe(true)
+  expect(first + second).toBe(text)
+  await expect(page.getByTestId('error-panel')).toHaveCount(0)
+  await expect(page.getByTestId('integrity')).toContainText('✓')
 })
 
 test('单行可容纳时原样输出', async ({ page }) => {
