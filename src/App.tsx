@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { breakSubtitle, MAX_MAX_WIDTH, MIN_MAX_WIDTH } from './lib/break'
 import type { BreakResult, CandidateEvaluation } from './lib/break'
+import { protectedRangeStillValid, selectionToProtectedRange } from './lib/protect'
+import type { MarkedPhrase } from './lib/protect'
 import { copyToClipboard } from './lib/clipboard'
 import './App.css'
 
@@ -10,12 +12,12 @@ function chars(text: string): string[] {
   return Array.from(text)
 }
 
-/** 安全区预览：按 1/2 宽度逐字排版，右侧即每行最大宽度边界 */
+/** 安全区预览：按 1/2 宽度逐字排版，右侧即每行最大宽度边界；受保护字符高亮标出 */
 function SafetyZone({
   lines,
   maxWidth,
 }: {
-  lines: { text: string; key: string }[]
+  lines: { text: string; key: string; protectFrom?: number; protectTo?: number }[]
   maxWidth: number
 }) {
   return (
@@ -32,9 +34,23 @@ function SafetyZone({
         <div className="safezone-line" key={line.key} data-testid="safezone-line">
           {chars(line.text).map((ch, i) => {
             const cp = ch.codePointAt(0)!
-            const cls = cp <= 0x7f ? (ch === ' ' ? 'gz ch-ascii ch-space' : 'gz ch-ascii') : 'gz ch-wide'
+            const protectedCh =
+              line.protectFrom !== undefined &&
+              line.protectTo !== undefined &&
+              i >= line.protectFrom &&
+              i < line.protectTo
+            const cls =
+              (cp <= 0x7f
+                ? ch === ' '
+                  ? 'gz ch-ascii ch-space'
+                  : 'gz ch-ascii'
+                : 'gz ch-wide') + (protectedCh ? ' gz-protected' : '')
             return (
-              <span className={cls} key={i} title={`U+${cp.toString(16).toUpperCase().padStart(4, '0')}`}>
+              <span
+                className={cls}
+                key={i}
+                title={`U+${cp.toString(16).toUpperCase().padStart(4, '0')}${protectedCh ? ' · 不可拆短语' : ''}`}
+              >
                 {ch === ' ' ? '·' : ch}
               </span>
             )
@@ -81,6 +97,9 @@ export default function App() {
   const [raw, setRaw] = useState(DEFAULT_TEXT)
   const [maxWidthInput, setMaxWidthInput] = useState('16')
   const [copyMsg, setCopyMsg] = useState('')
+  const [marked, setMarked] = useState<MarkedPhrase | null>(null)
+  const [protectMsg, setProtectMsg] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const maxWidth = Number(maxWidthInput)
   const widthValid =
@@ -94,12 +113,62 @@ export default function App() {
         message: `每行最大宽度必须是 ${MIN_MAX_WIDTH} 至 ${MAX_MAX_WIDTH} 之间的整数。预览已清除。`,
       }
     }
-    return breakSubtitle(raw, maxWidth)
-  }, [raw, maxWidth, widthValid])
+    return breakSubtitle(
+      raw,
+      maxWidth,
+      marked ? { start: marked.start, end: marked.end } : undefined,
+    )
+  }, [raw, maxWidth, widthValid, marked])
 
   const trimmed = raw.trim()
   const concatRestored =
     result.ok && result.split ? result.first + result.second === result.text : null
+
+  /** 某一行（从 lineStart 个码点开始、长 lineLen）与保护区间的交集，用于安全区高亮 */
+  function lineProtection(
+    lineStart: number,
+    lineLen: number,
+  ): { protectFrom: number; protectTo: number } | undefined {
+    if (!marked) return undefined
+    const from = Math.max(marked.start - lineStart, 0)
+    const to = Math.min(marked.end - lineStart, lineLen)
+    return from < to ? { protectFrom: from, protectTo: to } : undefined
+  }
+
+  /** 把输入框当前选区标记为不可拆短语（选区按 Unicode 码点位置换算为保护区间） */
+  function markSelection() {
+    const ta = textareaRef.current
+    if (!ta) return
+    const { selectionStart, selectionEnd } = ta
+    if (selectionStart === selectionEnd) {
+      setProtectMsg('请先在输入框中选中一段连续文字（如机构全称、日期或固定口号），再标记为不可拆短语。')
+      return
+    }
+    const range = selectionToProtectedRange(raw, selectionStart, selectionEnd)
+    if (!range) {
+      setProtectMsg('选区不在规范化后的有效文本内（首尾空白会被自动删除），请重新选择。')
+      return
+    }
+    setMarked(range)
+    setProtectMsg(
+      `已标记不可拆短语「${range.phrase}」（第 ${range.start + 1} 至第 ${range.end} 个字符）：断点不会落在其内部，两端边界仍可断开。`,
+    )
+  }
+
+  function unmarkProtection() {
+    setMarked(null)
+    setProtectMsg('已取消不可拆短语标记，恢复自动断句。')
+  }
+
+  function handleTextChange(value: string) {
+    setRaw(value)
+    setCopyMsg('')
+    // 编辑原文可能使已标记区间失效：失效即自动清除标记并提示重新选择
+    if (marked && !protectedRangeStillValid(value, marked)) {
+      setMarked(null)
+      setProtectMsg('原文已修改，不可拆短语标记已失效并自动清除，请重新选择。')
+    }
+  }
 
   async function copyResult() {
     if (!result.ok) return
@@ -129,13 +198,11 @@ export default function App() {
         <textarea
           id="text-input"
           data-testid="text-input"
+          ref={textareaRef}
           rows={3}
           value={raw}
           spellCheck={false}
-          onChange={(e) => {
-            setRaw(e.target.value)
-            setCopyMsg('')
-          }}
+          onChange={(e) => handleTextChange(e.target.value)}
         />
         <div className="controls">
           <label className="width-label" htmlFor="width-input">
@@ -159,14 +226,63 @@ export default function App() {
             {raw !== trimmed ? '已删除（中间空格保留）' : '无需删除'}
           </span>
         </div>
+
+        {/* 不可拆短语：选中一段连续文字后标记，断点不会落在其内部 */}
+        <div className="protect-controls">
+          <button
+            type="button"
+            className="protect-btn"
+            data-testid="mark-protected"
+            onClick={markSelection}
+          >
+            将选中文字标记为不可拆短语
+          </button>
+          {marked && (
+            <button
+              type="button"
+              className="protect-btn protect-btn-clear"
+              data-testid="unmark-protected"
+              onClick={unmarkProtection}
+            >
+              取消标记
+            </button>
+          )}
+        </div>
+        {marked && (
+          <div className="protection-view" data-testid="protection-view">
+            <span className="protection-label">不可拆短语（第 {marked.start + 1}–{marked.end} 字符）：</span>
+            <span className="protection-chars">
+              {chars(trimmed).map((ch, i) => (
+                <span
+                  key={i}
+                  className={i >= marked.start && i < marked.end ? 'pv-ch pv-on' : 'pv-ch'}
+                >
+                  {ch === ' ' ? '·' : ch}
+                </span>
+              ))}
+            </span>
+          </div>
+        )}
+        {protectMsg && (
+          <p className="protect-msg" data-testid="protection-message">
+            {protectMsg}
+          </p>
+        )}
       </section>
 
       {/* 失败时只渲染说明，旧预览被整体卸载，不会残留 */}
       {!result.ok && (
         <section className="panel panel-error" data-testid="error-panel" role="alert">
-          <strong>无法生成预览</strong>
+          <strong>
+            {result.reason === 'protected-conflict' ? '不可拆短语与当前宽度冲突' : '无法生成预览'}
+          </strong>
           <p data-testid="error-message">{result.message}</p>
           <p className="error-sub">预览区已清空，原文完整保留在输入框中，未截断任何字符。</p>
+          {result.reason === 'protected-conflict' && (
+            <p className="error-sub" data-testid="conflict-hint">
+              不可拆短语标记仍保留在输入区上方：可点击「取消标记」恢复自动断句，或调整每行最大宽度后重试。
+            </p>
+          )}
         </section>
       )}
 
@@ -185,7 +301,16 @@ export default function App() {
               完整性：原文字符顺序完整不变（{Array.from(result.text).length} 个字符）
             </li>
           </ul>
-          <SafetyZone lines={[{ text: result.text, key: 'l1' }]} maxWidth={maxWidth} />
+          <SafetyZone
+            lines={[
+              {
+                text: result.text,
+                key: 'l1',
+                ...lineProtection(0, Array.from(result.text).length),
+              },
+            ]}
+            maxWidth={maxWidth}
+          />
           <button type="button" className="copy-btn" onClick={copyResult}>
             复制结果（单行）
           </button>
@@ -243,8 +368,16 @@ export default function App() {
 
           <SafetyZone
             lines={[
-              { text: result.first, key: 'l1' },
-              { text: result.second, key: 'l2' },
+              {
+                text: result.first,
+                key: 'l1',
+                ...lineProtection(0, Array.from(result.first).length),
+              },
+              {
+                text: result.second,
+                key: 'l2',
+                ...lineProtection(result.breakIndex, Array.from(result.second).length),
+              },
             ]}
             maxWidth={maxWidth}
           />
@@ -266,6 +399,7 @@ export default function App() {
         <p>
           断句规则：第二行不得以“，。！？；：、）】》”开头；右双引号“””允许位于第二行行首；第一行不得以“（【《”结尾；两行均不得超宽。
           合法方案取宽差最小，并列取第一行更宽，仍并列取更靠前断点。
+          可在输入框中选中机构全称、日期或固定口号并标记为不可拆短语：断点不会落在短语内部，两端边界仍可断开；修改原文使区间失效时标记自动清除。
         </p>
       </footer>
     </main>

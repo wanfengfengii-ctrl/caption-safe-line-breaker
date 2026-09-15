@@ -208,6 +208,80 @@ input[type='number'] {
   color: var(--ink-soft);
 }
 
+/* 不可拆短语：输入区旁的标记条与安全区高亮 */
+.protect-controls {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.protect-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.protect-btn:hover {
+  filter: brightness(0.97);
+}
+
+.protect-btn-clear {
+  border-color: var(--line);
+  background: #fff;
+  color: var(--ink-soft);
+}
+
+.protection-view {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  font-size: 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.protection-label {
+  flex: none;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.protection-chars {
+  letter-spacing: 1px;
+}
+
+.pv-ch {
+  padding: 0 1px;
+  border-radius: 3px;
+}
+
+.pv-on {
+  background: #ffe9a8;
+  outline: 1px solid #e0a800;
+  font-weight: 600;
+}
+
+.protect-msg {
+  margin: 8px 0 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.gz-protected {
+  background: rgba(255, 210, 80, 0.4);
+  outline: 1px solid #e0a800;
+  border-radius: 2px;
+}
+
 .candidates {
   margin: 8px 0 16px;
   font-size: 13px;

@@ -136,3 +136,128 @@ test('无法合法两行时：明确失败、绝不截字', async ({ page }) => 
   await expect(page.getByTestId('error-message')).toContainText('未截断')
   await expect(page.getByTestId('text-input')).toHaveValue('甲乙丙丁。戊己庚')
 })
+
+test('选中机构全称标记为不可拆短语：断句避开短语、安全区标出、复制反映实际方案', async ({ page }) => {
+  // 16 个全角字符总宽 32，mw 20：无保护最优断点 i=8 把“大厅/明天”之间断开；
+  // 保护「大厅明天上午」（第 7–12 字符）后，内部断点 i ∈ {7..11} 全被禁用，
+  // 唯一幸存为起点边界 i=6：第一行恰为机构全称
+  const text = '政务服务中心大厅明天上午暂停办公'
+  const input = page.getByTestId('text-input')
+  await input.fill(text)
+  await page.getByTestId('width-input').fill('20')
+
+  // 标记前：无保护自动断句
+  const boxes = page.getByTestId('line-box')
+  await expect(boxes).toHaveCount(2)
+  expect((await boxes.nth(0).locator('.line-text').innerText()).trim()).toBe('政务服务中心大厅')
+
+  // 选中第 7–12 个字符「大厅明天上午」并标记
+  await input.evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(6, 12))
+  await page.getByTestId('mark-protected').click()
+
+  // 输入区旁标出受保护文字
+  const view = page.getByTestId('protection-view')
+  await expect(view).toBeVisible()
+  await expect(view).toContainText('大厅明天上午')
+  await expect(view.locator('.pv-on')).toHaveCount(6)
+  await expect(page.getByTestId('protection-message')).toContainText('已标记不可拆短语')
+
+  // 两行结果避开短语：断点移到短语边界，短语完整留在第二行
+  await expect(boxes).toHaveCount(2)
+  const first = (await boxes.nth(0).locator('.line-text').innerText()).trim()
+  const second = (await boxes.nth(1).locator('.line-text').innerText()).trim()
+  expect(first).toBe('政务服务中心')
+  expect(second).toBe('大厅明天上午暂停办公')
+  expect(first + second).toBe(text)
+  expect(second).toContain('大厅明天上午')
+
+  // 行宽与断点反映实际方案
+  const meta = page.getByTestId('meta')
+  await expect(meta).toContainText('第一行行宽：12')
+  await expect(meta).toContainText('第二行行宽：20')
+  await expect(page.getByTestId('break-point')).toContainText('第 6 与第 7 个字符之间')
+  await expect(page.getByTestId('integrity')).toContainText('✓')
+
+  // 安全区预览标出受保护文字：6 个受保护字符全部在第二行
+  await expect(page.getByTestId('safezone-line')).toHaveCount(2)
+  await expect(page.getByTestId('safezone-line').nth(0).locator('.gz-protected')).toHaveCount(0)
+  await expect(page.getByTestId('safezone-line').nth(1).locator('.gz-protected')).toHaveCount(6)
+
+  // 复制内容反映实际方案
+  await page.getByTestId('copy-result').click()
+  await expect(page.getByTestId('copy-message')).toContainText('已复制')
+  const clipboard = await page.evaluate(() => navigator.clipboard.readText())
+  expect(clipboard).toBe('政务服务中心\n大厅明天上午暂停办公')
+})
+
+test('保护导致所有断点不可用：保留原文与标记、卸载预览、错误与输入错误区分，取消标记后恢复', async ({ page }) => {
+  // 8 个全角字符总宽 16，mw 8：唯一宽度可行断点 i=4；
+  // 保护「丙丁戊己」（区间 [2,6)）后 i=4 落入内部 → 所有断点不可用
+  const text = '甲乙丙丁戊己庚辛'
+  const input = page.getByTestId('text-input')
+  await input.fill(text)
+  await page.getByTestId('width-input').fill('8')
+  await expect(page.getByTestId('result-panel')).toBeVisible()
+
+  await input.evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(2, 6))
+  await page.getByTestId('mark-protected').click()
+  await expect(page.getByTestId('protection-view')).toBeVisible()
+
+  // 旧预览被卸载，出现区别于普通输入错误的专属冲突说明
+  await expect(page.getByTestId('result-panel')).toHaveCount(0)
+  const errPanel = page.getByTestId('error-panel')
+  await expect(errPanel).toBeVisible()
+  await expect(errPanel.locator('strong')).toHaveText('不可拆短语与当前宽度冲突')
+  await expect(page.getByTestId('error-message')).toContainText('不可拆短语与当前宽度冲突')
+  await expect(page.getByTestId('error-message')).toContainText('丙丁戊己')
+  await expect(page.getByTestId('error-message')).toContainText('未截断')
+  await expect(page.getByTestId('conflict-hint')).toBeVisible()
+
+  // 原文与标记均保留
+  await expect(input).toHaveValue(text)
+  await expect(page.getByTestId('protection-view')).toBeVisible()
+  await expect(page.getByTestId('protection-view').locator('.pv-on')).toHaveCount(4)
+
+  // 取消标记后恢复自动断句
+  await page.getByTestId('unmark-protected').click()
+  await expect(page.getByTestId('protection-view')).toHaveCount(0)
+  await expect(page.getByTestId('error-panel')).toHaveCount(0)
+  await expect(page.getByTestId('result-panel')).toBeVisible()
+  const boxes = page.getByTestId('line-box')
+  expect((await boxes.nth(0).locator('.line-text').innerText()).trim()).toBe('甲乙丙丁')
+  expect((await boxes.nth(1).locator('.line-text').innerText()).trim()).toBe('戊己庚辛')
+})
+
+test('编辑原文后保护失效的直接边界：短语后追加保留标记，改动短语即失效清除', async ({ page }) => {
+  const text = '政务服务中心大厅明天上午暂停办公'
+  const input = page.getByTestId('text-input')
+  await input.fill(text)
+  await page.getByTestId('width-input').fill('24')
+
+  await input.evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(6, 12))
+  await page.getByTestId('mark-protected').click()
+  await expect(page.getByTestId('protection-view')).toBeVisible()
+  // mw 24 下保护生效：断点被推到起点边界 i=6
+  const boxes = page.getByTestId('line-box')
+  expect((await boxes.nth(0).locator('.line-text').innerText()).trim()).toBe('政务服务中心')
+
+  // 边界一侧：在短语之后追加文字，区间未受影响，标记保留且继续生效
+  await input.fill(text + '，敬请谅解')
+  await expect(page.getByTestId('protection-view')).toBeVisible()
+  await expect(page.getByTestId('protection-view').locator('.pv-on')).toHaveCount(6)
+  // 保护仍在塑造结果：无保护最优断点为 i=11（“…明天上”，把“上午”切开），
+  // 保护下断点停在短语终点边界 i=12，第一行完整包含「大厅明天上午」
+  expect((await boxes.nth(0).locator('.line-text').innerText()).trim()).toBe(
+    '政务服务中心大厅明天上午',
+  )
+
+  // 边界另一侧：改动短语内字符（上午→下午），标记失效并自动清除、提示重新选择
+  await input.fill('政务服务中心大厅明天下午暂停办公')
+  await expect(page.getByTestId('protection-view')).toHaveCount(0)
+  await expect(page.getByTestId('protection-message')).toContainText('失效')
+  await expect(page.getByTestId('protection-message')).toContainText('重新选择')
+  // 恢复无保护自动断句
+  await expect(page.getByTestId('result-panel')).toBeVisible()
+  expect((await boxes.nth(0).locator('.line-text').innerText()).trim()).toBe('政务服务中心大厅')
+  expect((await boxes.nth(1).locator('.line-text').innerText()).trim()).toBe('明天下午暂停办公')
+})
