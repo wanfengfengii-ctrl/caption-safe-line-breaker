@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { breakSubtitle, MAX_MAX_WIDTH, MIN_MAX_WIDTH } from './lib/break'
 import type { BreakResult, CandidateEvaluation } from './lib/break'
+import { scanDisplayUnits } from './lib/units'
 import { protectedRangeStillValid, selectionToProtectedRange } from './lib/protect'
 import type { MarkedPhrase } from './lib/protect'
 import { copyToClipboard } from './lib/clipboard'
@@ -12,7 +13,7 @@ function chars(text: string): string[] {
   return Array.from(text)
 }
 
-/** 安全区预览：按 1/2 宽度逐字排版，右侧即每行最大宽度边界；受保护字符高亮标出 */
+/** 安全区预览：按显示单元以 1/2 宽度排版，右侧即每行最大宽度边界；受保护字符高亮标出 */
 function SafetyZone({
   lines,
   maxWidth,
@@ -32,26 +33,31 @@ function SafetyZone({
       </div>
       {lines.map((line) => (
         <div className="safezone-line" key={line.key} data-testid="safezone-line">
-          {chars(line.text).map((ch, i) => {
-            const cp = ch.codePointAt(0)!
-            const protectedCh =
+          {scanDisplayUnits(line.text).map((unit, i) => {
+            // 单元码点区间与保护区间（码点位置）相交即高亮
+            const protectedUnit =
               line.protectFrom !== undefined &&
               line.protectTo !== undefined &&
-              i >= line.protectFrom &&
-              i < line.protectTo
+              unit.start < line.protectTo &&
+              unit.end > line.protectFrom
             const cls =
-              (cp <= 0x7f
-                ? ch === ' '
+              (unit.width === 1
+                ? unit.text === ' '
                   ? 'gz ch-ascii ch-space'
                   : 'gz ch-ascii'
-                : 'gz ch-wide') + (protectedCh ? ' gz-protected' : '')
+                : 'gz ch-wide') +
+              (protectedUnit ? ' gz-protected' : '') +
+              (unit.degenerate ? ' gz-degenerate' : '')
+            const codePoints = Array.from(unit.text)
+              .map((ch) => `U+${ch.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')}`)
+              .join(' ')
             return (
               <span
                 className={cls}
                 key={i}
-                title={`U+${cp.toString(16).toUpperCase().padStart(4, '0')}${protectedCh ? ' · 不可拆短语' : ''}`}
+                title={`${codePoints}${protectedUnit ? ' · 不可拆短语' : ''}`}
               >
-                {ch === ' ' ? '·' : ch}
+                {unit.text === ' ' ? '·' : unit.text}
               </span>
             )
           })}
@@ -64,7 +70,7 @@ function SafetyZone({
 function CandidateTable({ candidates }: { candidates: CandidateEvaluation[] }) {
   return (
     <details className="candidates">
-      <summary>查看全部字符间候选断点（{candidates.length} 个）</summary>
+      <summary>查看全部候选断点（{candidates.length} 个，均为显示单元边界）</summary>
       <table>
         <thead>
           <tr>
@@ -399,6 +405,7 @@ export default function App() {
         <p>
           断句规则：第二行不得以“，。！？；：、）】》”开头；右双引号“””允许位于第二行行首；第一行不得以“（【《”结尾；两行均不得超宽。
           合法方案取宽差最小，并列取第一行更宽，仍并列取更靠前断点。
+          组合音标、国旗与零宽连接符 emoji 等复合字形作为整体显示单元参与断句，不会从中间拆开；断点位置仍按字符（码点）序号展示。
           可在输入框中选中机构全称、日期或固定口号并标记为不可拆短语：断点不会落在短语内部，两端边界仍可断开；修改原文使区间失效时标记自动清除。
         </p>
       </footer>

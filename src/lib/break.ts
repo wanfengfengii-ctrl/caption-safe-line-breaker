@@ -1,4 +1,5 @@
-import { charWidth } from './width'
+import { scanDisplayUnits } from './units'
+import type { DisplayUnit } from './units'
 
 export const MIN_MAX_WIDTH = 8
 export const MAX_MAX_WIDTH = 24
@@ -48,7 +49,7 @@ export interface SingleLineResult {
 }
 
 export interface CandidateEvaluation {
-  /** 断点位置：第一行包含的码点数，断点在第 index 与第 index+1 个字符之间 */
+  /** 断点位置（显示单元边界）：第一行包含的码点数，断点在第 index 与第 index+1 个字符之间 */
   index: number
   first: string
   second: string
@@ -122,14 +123,15 @@ interface Enumeration {
 }
 
 /**
- * 枚举全部字符间断点并按固定规则择优：
+ * 枚举全部显示单元边界上的候选断点并按固定规则择优：
+ * - 断点只取单元边界（码点位置），复合字形内部不出现候选
  * - 只保留两行均不超宽、不触发标点悬挂、且不落在保护区间内部的方案
  * - 合法方案中取 |第一行宽 - 第二行宽| 最小者；
  *   并列取第一行更宽者；仍并列（同一总宽下不会发生）取更靠前断点。
  */
 function enumerateCandidates(
   chars: string[],
-  widths: number[],
+  units: DisplayUnit[],
   totalWidth: number,
   maxWidth: number,
   range: ProtectedRange | undefined,
@@ -138,16 +140,19 @@ function enumerateCandidates(
   let best: Enumeration['best'] = null
 
   let prefix = 0
-  for (let i = 1; i < chars.length; i++) {
-    prefix += widths[i - 1]
+  for (let k = 1; k < units.length; k++) {
+    prefix += units[k - 1].width
+    // 断点的码点位置：第 k 个单元之前的字符数
+    const i = units[k].start
     const firstWidth = prefix
     const secondWidth = totalWidth - prefix
     const reasons: string[] = []
 
     if (firstWidth > maxWidth) reasons.push('第一行超宽')
     if (secondWidth > maxWidth) reasons.push('第二行超宽')
-    if (FORBIDDEN_LINE2_START.has(chars[i])) reasons.push('第二行以禁用标点开头')
-    if (FORBIDDEN_LINE1_END.has(chars[i - 1])) reasons.push('第一行以左括号结尾')
+    // 标点限制由边界两侧单元的首个基字符判定
+    if (FORBIDDEN_LINE2_START.has(units[k].firstChar)) reasons.push('第二行以禁用标点开头')
+    if (FORBIDDEN_LINE1_END.has(units[k - 1].firstChar)) reasons.push('第一行以左括号结尾')
     // 区间内部（不含边界）禁止断开；i === start / i === end 仍为合法边界
     if (range && i > range.start && i < range.end) {
       reasons.push('断点落在不可拆短语内部')
@@ -186,8 +191,10 @@ function enumerateCandidates(
 
 /**
  * 计算唯一断句：
+ * - 先用固定扫描器把规范化文本切分为显示单元（组合音标、国旗、
+ *   零宽连接符 emoji 等复合字形不会被拆开），宽度与标点限制由单元首个基字符判定
  * - 文本总宽 <= maxWidth 时原样输出一行
- * - 否则枚举每两个相邻字符之间的断点，只保留两行均不超宽、
+ * - 否则枚举每个单元边界上的断点（以码点位置展示），只保留两行均不超宽、
  *   不触发标点悬挂规则、且不落在保护区间内部的方案
  * - 合法方案中取宽差最小者；并列取第一行更宽者；仍并列取更靠前断点。
  * 绝不截字：成功时 first + second 与规范化后原文严格相等。
@@ -213,8 +220,8 @@ export function breakSubtitle(
   const { text } = normalized
 
   const chars = Array.from(text)
-  const widths = chars.map((ch) => charWidth(ch.codePointAt(0)!))
-  const totalWidth = widths.reduce((a, b) => a + b, 0)
+  const units = scanDisplayUnits(text)
+  const totalWidth = units.reduce((sum, u) => sum + u.width, 0)
 
   if (totalWidth <= maxWidth) {
     return { ok: true, split: false, text, width: totalWidth }
@@ -228,13 +235,13 @@ export function breakSubtitle(
     if (start < end) range = { start, end }
   }
 
-  const { candidates, best } = enumerateCandidates(chars, widths, totalWidth, maxWidth, range)
+  const { candidates, best } = enumerateCandidates(chars, units, totalWidth, maxWidth, range)
 
   if (best === null) {
     if (range) {
       // 区分“不可拆短语与当前宽度冲突”与文本本身无解：
       // 去掉保护后若有合法方案，则冲突由保护区间引起
-      const unprotected = enumerateCandidates(chars, widths, totalWidth, maxWidth, undefined)
+      const unprotected = enumerateCandidates(chars, units, totalWidth, maxWidth, undefined)
       if (unprotected.best !== null) {
         const phrase = chars.slice(range.start, range.end).join('')
         return fail(

@@ -282,6 +282,12 @@ input[type='number'] {
   border-radius: 2px;
 }
 
+/* 退化显示单元（无基字符的扩展符 / 孤立连接符）：点线框提示 */
+.gz-degenerate {
+  outline: 1px dotted var(--warn);
+  border-radius: 2px;
+}
+
 .candidates {
   margin: 8px 0 16px;
   font-size: 13px;
